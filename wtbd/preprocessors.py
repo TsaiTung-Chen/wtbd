@@ -3,7 +3,7 @@
 Created on Sat eb  8 21:52:55 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/29
+@update: 2021/09/30
 @outputs: numpy array in float64
 @pipeline:
     1.
@@ -19,9 +19,9 @@ VLIM_PA = (0, 0.0005)    # acoustic pressure in Pa <=> (-inf~28 dB SPL)
 EPSILON = 1e-7    # to avoid ZeroDivisionError
 
 # Classes
-INDEX_TO_NAME = { 0: "[n]", 1: "[f]" }
+INDEX_TO_NAME = { 0: "[n]", 1: "[d]" }
 NAME_TO_INDEX = {
-    "[n]": 0, "[f]": 1, "[0f]": 0, "[1f]": 1, "[2f]": 1, "[3f]": 1}
+    "[n]": 0, "[d]": 1, "[0d]": 0, "[1d]": 1, "[2d]": 1, "[3d]": 1}
 
 RECORDING_ENVIRONMENTS_PATH = r"config/recording_environments.json"
 
@@ -129,10 +129,11 @@ def get_factor(which, model, date, no, subtitle='', **kwargs) -> dict:
 def change_symbol(name_or_index, symbol_type='index'):
     assert symbol_type in {'index', 'name'}, symbol_type
     
-    if isinstance(name_or_index, str):
+    if isinstance(name_or_index, str):    # got name
         if symbol_type == 'index':
             return NAME_TO_INDEX[name_or_index]
-        return name_or_index
+        return INDEX_TO_NAME[NAME_TO_INDEX[name_or_index]]
+    # got index
     if symbol_type == 'name':
         return INDEX_TO_NAME[name_or_index]
     return name_or_index
@@ -148,8 +149,9 @@ def generate_labels(name_or_index, label_type='index', n_samples=1):
 
 
 
-def count_classes(classname, n_samples=1):
-    keys = NAME_TO_INDEX.keys()
+def count_classes(name_or_index, n_samples=1):
+    classname = change_symbol(name_or_index, symbol_type='name')
+    keys = INDEX_TO_NAME.values()
     classcounts = dict.fromkeys(keys, 0)
     classcounts.update({classname: n_samples})
     

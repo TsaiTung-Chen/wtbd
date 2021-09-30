@@ -3,7 +3,7 @@
 Created on Sat Sep 12 17:08:46 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/27
+@update: 2021/09/30
 @pipeline:
     1.
 """
@@ -139,10 +139,10 @@ class SubsetDataCollector(DataCollector):
             return fpaths
         
         if self.subset in {'train', 'valid', 'test'}:
-            ids = self.SubsetIds['fname'][self.subset]
+            ids = self.SubsetIds[self.subset]
         else:
             idx = int(self.subset[-1])
-            ids = self.SubsetIds['fname']['kfold'][idx]
+            ids = self.SubsetIds['kfold'][idx]
         
         in_subset = lambda p: any(map(lambda id_: id_ in p, ids))
         
