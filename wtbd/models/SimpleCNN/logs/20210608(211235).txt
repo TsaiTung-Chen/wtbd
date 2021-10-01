@@ -130,7 +130,8 @@ _________________________________________________________________
 done
 >> fit...
 done
-history saved!
+
+history saved!
 plot saved!
 
 
