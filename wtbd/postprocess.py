@@ -3,16 +3,12 @@
 Created on Sun Sep 13 17:37:18 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/28
+@update: 2021/10/01
 @pipeline:
     1.
 """
 
-import functools
 import numpy as np
-from tabulate import tabulate
-
-from .preprocessors import change_symbol
 # =============================================================================
 # 
 # =============================================================================
@@ -36,20 +32,5 @@ def binary_classification(y, threshold=0.5, keepdims=True):
     if keepdims:
         return classes
     return 0 if classes.mean() < 0.5 else 1
-
-
-
-def show_prediction(data: dict, pred, label_type='name', print_fn=print):
-    names, pred = np.squeeze(data['names']), np.squeeze(pred)
-    assert len(names) == len(pred)
-    
-    _change_symbol = functools.partial(change_symbol, symbol_type=label_type)
-    pred = list(map(_change_symbol, pred))
-    index = range(len(names))
-    table = tabulate(np.stack([index, names, pred], axis=-1), 
-                     headers=['index', 'names', 'predicted class'])
-    print_fn(table)
-    
-    return table
 
 

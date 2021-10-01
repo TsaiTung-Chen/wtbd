@@ -4,7 +4,7 @@
 Created on Mon Sep 27 18:11:58 2021
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/29
+@update: 2021/10/01
 """
 
 MODEL_NAME = 'PhysicalCNN'
@@ -12,33 +12,39 @@ MODEL_NAME = 'PhysicalCNN'
 DIRECTORY = r"../dataset/preprocessed/data/"
 WALK = True
 
+SUBSET = 'all'
+
 SENSITIVITY = None
 SCALE = None
 PLOT = 1
 
+
 from wtbd.nn import get_network
-from wtbd.utils import get_inputs
 from wtbd.preprocessors import Preprocessor
-from wtbd.postprocess import show_prediction
-from wtbd.data_collectors import SubsetDataCollector
+from wtbd.data_collectors import SubsetDataCollector, fetch
+from wtbd.utils import get_inputs, print_info, show_prediction
 # =============================================================================
 # 
 # =============================================================================
 def infer(modelname, 
           directory, 
           walk=False, 
+          subset='all', 
           sensitivity=None, 
           scale=None, 
           plot=1):
     try:
         data_collector = SubsetDataCollector()
-        data = data_collector(directory, subset='test')
+        data = data_collector(directory, subset=subset)
     except FileNotFoundError:
         preprocessor = Preprocessor(plot=plot)
         data = preprocessor(directory, 
                             walk=walk, 
                             sensitivity=sensitivity, 
                             scale=scale)
+        data = fetch(data, subset=subset)
+        print()
+    print_info(data['info'])
     
     inputs = get_inputs(modelname, data)
     
@@ -58,6 +64,7 @@ if __name__ == '__main__':
     data, results = infer(MODEL_NAME, 
                           DIRECTORY, 
                           walk=WALK, 
+                          subset=SUBSET, 
                           sensitivity=SENSITIVITY, 
                           scale=SCALE, 
                           plot=PLOT)

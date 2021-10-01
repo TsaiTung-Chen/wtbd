@@ -3,7 +3,7 @@
 Created on Sat Sep 12 17:08:46 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/30
+@update: 2021/10/01
 @pipeline:
     1.
 """
@@ -11,46 +11,49 @@ Created on Sat Sep 12 17:08:46 2020
 SUBSET_IDS_PATH = r"config/subset_ids.json"
 
 
+import os
 import pkgutil
 import numpy as np
-from typing import Optional, Callable
+from typing import Optional
 
-from .preprocessors import DTYPE, search_files, parse_datapath, load_png
 from .lib.json.io import loads_json
+from .preprocessors import DTYPE, search_files, parse_datapath, load_png
 
 _raw = pkgutil.get_data(__package__, SUBSET_IDS_PATH)
 SubsetIds = loads_json(_raw)
+Keys = ['all', 'train', 'valid', 'test', 'fold0', 'fold1', 'fold2', 'fold3']
 # =============================================================================
 # ---- Functions
 # =============================================================================
-def print_info(dictionary: dict,  print_fn: Optional[Callable] = print):
-    def str_(value):
-        if np.issubdtype(type(value), np.floating):
-            return '{:.4f}'.format(value)
-        return str(value)
+def get_subset_ids(subset: str = 'all') -> Optional[list]:
+    if subset not in Keys:
+        raise ValueError("`subset` should be any of %r " % Keys + 
+                         "but got %r" % subset)
+    if subset == 'all':
+        return None
     
-    #
-    string = ''
-    for key, value in dictionary.items():
-        string += '%s: ' % key
-        if isinstance(value, dict):
-            substr = [ '%s = %s' % (k, str_(v)) for k, v in value.items() ]
-            substr = ', '.join(substr)
-            string += '{' + substr + '}'
-        elif isinstance(value, set):
-            string += '{' + ', '.join([str_(v) for v in value]) + '}'
-        elif isinstance(value, tuple):
-            string += '(' + ', '.join([str_(v) for v in value]) + ')'
-        elif isinstance(value, list):
-            string += '[' + ', '.join([str_(v) for v in value]) + ']'
-        else:
-            string += str_(value)
-        string += '\n'
+    if subset in {'train', 'valid', 'test'}:
+        return SubsetIds[subset]
+    idx = int(subset[-1])
+    return SubsetIds['kfold'][idx]
+
+
+
+def fetch(data: dict, subset: str = 'all') -> dict:
+    assert isinstance(data, dict), type(data)
+    subset_ids = get_subset_ids(subset)
+    if subset_ids is None:
+        return data
     
-    if print_fn:
-        print_fn(string)
+    in_subset = lambda p: any(map(
+        lambda id_: id_ in os.path.basename(p), subset_ids))
     
-    return string
+    retained = list(map(in_subset, data['names']))
+    for key in ['names', 'Ss', 'rpms', 'labels']:
+        retained_gen = ( b for b in retained )
+        data[key] = list(filter(lambda _: next(retained_gen), data[key]))
+    
+    return data
 
 
 # =============================================================================
@@ -72,7 +75,6 @@ class DataCollector:
             raise FileNotFoundError("No PNG files found in %r" % directory)
         
         data = self.read_files(png_paths)
-        print_info(data['info'], print_fn=self.print_fn)
         
         return data
     
@@ -122,29 +124,19 @@ class DataCollector:
 
 
 class SubsetDataCollector(DataCollector):
-    SubsetIds = SubsetIds
-    Keys = {'all', 'train', 'valid', 'test', 'fold0', 'fold1', 'fold2', 'fold3'}
-    
-    def __call__(self, directory, subset, walk=False, is_SPL=True) -> dict:
+    def __call__(self, directory, walk=False, is_SPL=True, subset='all') -> dict:
         self.subset = subset.lower()
         return super().__call__(directory, walk=walk, is_SPL=is_SPL)
     
     def search_files(self, directory) -> list:
-        if self.subset not in self.Keys:
-            raise ValueError("`subset` should be any of %r " % self.Keys + 
-                             "but got %r" % self.subset)
-        
         fpaths = super().search_files(directory)
-        if self.subset == 'all':
+        subset_ids = get_subset_ids(self.subset)
+        
+        if subset_ids is None:
             return fpaths
         
-        if self.subset in {'train', 'valid', 'test'}:
-            ids = self.SubsetIds[self.subset]
-        else:
-            idx = int(self.subset[-1])
-            ids = self.SubsetIds['kfold'][idx]
-        
-        in_subset = lambda p: any(map(lambda id_: id_ in p, ids))
+        in_subset = lambda p: any(map(
+            lambda id_: id_ in os.path.basename(p), subset_ids))
         
         return list(filter(in_subset, fpaths))
 

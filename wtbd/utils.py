@@ -4,14 +4,17 @@
 Created on Mon Sep 27 18:21:32 2021
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/28
+@update: 2021/10/01
 """
 
+import functools
 import numpy as np
 import tensorflow as tf
-from typing import Optional, Iterable
+from tabulate import tabulate
 import matplotlib.pyplot as plt
+from typing import Optional, Iterable, Callable
 
+from .preprocessors import change_symbol
 from .preprocessors import DTYPE, VLIM_PA, VLIM_SPL
 from .lib.matplotlib.rc_style import plt_rc_context
 # =============================================================================
@@ -70,5 +73,51 @@ def plot_spectrogram(S,
     plt.show()
     
     return fig
+
+
+
+def print_info(dictionary: dict,  print_fn: Optional[Callable] = print):
+    def str_(value):
+        if np.issubdtype(type(value), np.floating):
+            return '{:.4f}'.format(value)
+        return str(value)
+    
+    #
+    string = ''
+    for key, value in dictionary.items():
+        string += '%s: ' % key
+        if isinstance(value, dict):
+            substr = [ '%s = %s' % (k, str_(v)) for k, v in value.items() ]
+            substr = ', '.join(substr)
+            string += '{' + substr + '}'
+        elif isinstance(value, set):
+            string += '{' + ', '.join([str_(v) for v in value]) + '}'
+        elif isinstance(value, tuple):
+            string += '(' + ', '.join([str_(v) for v in value]) + ')'
+        elif isinstance(value, list):
+            string += '[' + ', '.join([str_(v) for v in value]) + ']'
+        else:
+            string += str_(value)
+        string += '\n'
+    
+    if print_fn:
+        print_fn(string)
+    
+    return string
+
+
+
+def show_prediction(data: dict, pred, label_type='name', print_fn=print):
+    names, pred = np.squeeze(data['names']), np.squeeze(pred)
+    assert len(names) == len(pred)
+    
+    _change_symbol = functools.partial(change_symbol, symbol_type=label_type)
+    pred = list(map(_change_symbol, pred))
+    index = range(len(names))
+    table = tabulate(np.stack([index, names, pred], axis=-1), 
+                     headers=['index', 'names', 'predicted class'])
+    print_fn(table)
+    
+    return table
 
 

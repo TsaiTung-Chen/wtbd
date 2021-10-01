@@ -4,41 +4,47 @@
 Created on Mon Sep 27 18:11:58 2021
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/29
+@update: 2021/10/01
 """
 
 MODEL_NAME = 'PhysicalCNN'
 
-DIRECTORY = r"../dataset/preprocessed/data/"
+DIRECTORY = r"../dataset/audio/"
 WALK = True
+
+SUBSET = 'all'
 
 SENSITIVITY = None
 SCALE = None
-PLOT = 0#???1
+PLOT = 1
+
 
 from wtbd.nn import get_network
 from wtbd.preprocessors import Preprocessor
-from wtbd.utils import get_inputs, get_targets
-from wtbd.data_collectors import SubsetDataCollector
+from wtbd.data_collectors import SubsetDataCollector, fetch
+from wtbd.utils import get_inputs, get_targets, print_info
 # =============================================================================
 # 
 # =============================================================================
 def evaluate(modelname, 
              directory, 
              walk=False, 
+             subset='all', 
              sensitivity=None, 
              scale=None, 
              plot=1):
     try:
         data_collector = SubsetDataCollector()
-        data = data_collector(directory, subset='test')
+        data = data_collector(directory, subset=subset)
     except FileNotFoundError:
         preprocessor = Preprocessor(plot=plot)
         data = preprocessor(directory, 
                             walk=walk, 
                             sensitivity=sensitivity, 
                             scale=scale)
+        data = fetch(data, subset=subset)
         print()
+    print_info(data['info'])
     
     inputs = get_inputs(modelname, data)
     targets = get_targets(data)
@@ -56,6 +62,7 @@ if __name__ == '__main__':
     data, results = evaluate(MODEL_NAME, 
                              DIRECTORY, 
                              walk=WALK, 
+                             subset=SUBSET, 
                              sensitivity=SENSITIVITY, 
                              scale=SCALE, 
                              plot=PLOT)
