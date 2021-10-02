@@ -4,7 +4,7 @@
 Created on Mon Sep 27 18:21:32 2021
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/10/01
+@update: 2021/10/02
 """
 
 import functools
@@ -115,7 +115,7 @@ def show_prediction(data: dict, pred, label_type='name', print_fn=print):
     pred = list(map(_change_symbol, pred))
     index = range(len(names))
     table = tabulate(np.stack([index, names, pred], axis=-1), 
-                     headers=['index', 'names', 'predicted class'])
+                     headers=['index', 'name', 'predicted class'])
     print_fn(table)
     
     return table
