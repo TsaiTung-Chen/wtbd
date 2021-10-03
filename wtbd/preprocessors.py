@@ -159,17 +159,27 @@ def count_classes(name_or_index, n_samples=1):
 
 
     
-def search_files(directory, exts='.wav', walk=False, sort=False):
+def search_files(directory,
+                 exts=['.wav'],
+                 walk=False,
+                 skip_hidden=True,
+                 sort=False):
     if isinstance(exts, str):
         exts = [exts]
     
     if not os.path.isdir(directory) and any(map(directory.endswith, exts)):
+        if skip_hidden and directory.startswith('.'):
+            return list()
         return [directory]
     
+    if skip_hidden:
+        func = lambda f: f.endswith(ext) and (not f.startswith('.'))
+    else:
+        func = lambda f: f.endswith(ext)
     fpaths = list()
     for ext in exts:
         for direc, folders, files in os.walk(directory):
-            files = filter(lambda f: f.endswith(ext), files)
+            files = filter(func, files)
             fpaths += list(map(lambda f: os.path.join(direc, f), files))
             if not walk:
                 break
