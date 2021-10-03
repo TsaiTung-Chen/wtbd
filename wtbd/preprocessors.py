@@ -3,7 +3,7 @@
 Created on Sat eb  8 21:52:55 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/30
+@update: 2021/10/03
 @outputs: numpy array in float64
 @pipeline:
     1.
@@ -406,15 +406,15 @@ class Preprocessor:
     def __call__(self, 
                  directory,     # WAV files
                  walk=False, 
-                 save_dir=None, 
+                 save_directory=None, 
                  sensitivity=None, 
                  scale=None, 
                  rslimits=None) -> dict:
          # keys: 'names', 'Ss', 'rpms', 'labels', 'info'
         self.directory = directory
         self.walk = walk
-        self.save_dir = save_dir
-        self.save = save_dir is not None
+        self.save_directory = save_directory
+        self.save = save_directory is not None
         self.sensitivity = sensitivity
         self.scale = scale
         self.rslimits = rslimits
@@ -430,7 +430,7 @@ class Preprocessor:
             raise FileNotFoundError("No WAV files found in %r" % directory)
         
         if self.save:
-            self.print_fn('Saving directory: %s\n' % save_dir)
+            self.print_fn('Saving directory: %s\n' % save_directory)
         
         results = dict()
         for i, filepath in enumerate(wav_paths, start=1):
@@ -465,7 +465,7 @@ class Preprocessor:
             # Save
             if not self.save:
                 continue
-            join_path = functools.partial(os.path.join, save_dir, 'data')
+            join_path = functools.partial(os.path.join, save_directory, 'data')
             save_spectrogram = functools.partial(save_png, is_SPL=self.SPL)
             datapaths = map(join_path, res['names'])
             list(map(save_spectrogram, datapaths, res['Ss']))
@@ -476,7 +476,7 @@ class Preprocessor:
         
         # Write preprocess info
         if self.save:
-            fpath = os.path.join(save_dir, 'preprocess_info.txt')
+            fpath = os.path.join(save_directory, 'preprocess_info.txt')
             with open(fpath, 'w') as f:
                 print(info.to_string(), file=f)
                 if 'table' in results.keys():
@@ -495,8 +495,8 @@ class Preprocessor:
         return results
     
     def process(self, filepath):
-        if self.save and not (os.path.exists(self.save_dir)):
-            os.makedirs(self.save_dir)
+        if self.save and not (os.path.exists(self.save_directory)):
+            os.makedirs(self.save_directory)
         
         # Load Wav File
         x, sr = librosa.load(filepath, sr=None, mono=False, dtype='float64')
@@ -615,7 +615,7 @@ class Preprocessor:
         else:
             plt.close()
         if self.save:
-            fpath = os.path.join(self.save_dir, 
+            fpath = os.path.join(self.save_directory, 
                                  fname+'_%d.png' % next(self._idx_gen))
             save_fig(fig, fpath, newfolder=True, makedir=True)
         
@@ -709,7 +709,7 @@ class Preprocessor:
             else:
                 plt.close()
             if self.save:
-                fpath = os.path.join(self.save_dir, 
+                fpath = os.path.join(self.save_directory, 
                                      fname+'_%d.png' % next(self._idx_gen))
                 save_fig(fig, fpath, newfolder=True, makedir=True)
         
@@ -840,7 +840,7 @@ class Preprocessor:
             else:
                 plt.close()
             if self.save:
-                fpath = os.path.join(self.save_dir, 
+                fpath = os.path.join(self.save_directory, 
                                      fname+'_%d.png' % next(self._idx_gen))
                 save_fig(fig, fpath, newfolder=True, makedir=True)
         
@@ -907,7 +907,7 @@ class Preprocessor:
             else:
                 plt.close()
             if self.save:
-                fpath = os.path.join(self.save_dir, 
+                fpath = os.path.join(self.save_directory, 
                                      fname+'_%d.png' % next(self._idx_gen))
                 save_fig(fig, fpath, newfolder=True, makedir=True)
         
@@ -1003,7 +1003,7 @@ class Preprocessor:
             else:
                 plt.close()
             if self.save:
-                fpath = os.path.join(self.save_dir, 
+                fpath = os.path.join(self.save_directory, 
                                      fname+'_%d.png' % next(self._idx_gen))
                 save_fig(fig, fpath, newfolder=True, makedir=True)
         
