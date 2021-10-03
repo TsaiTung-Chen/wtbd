@@ -9,4 +9,4 @@ tabulate=0.8.9    # table layout
 scikit-image=0.18.3    # image processing
 pydot=1.4.2
 pandas=1.3.3
-tensorflow-deps=2.6.0
+tensorflow-deps=2.6.0    # --channel apple
