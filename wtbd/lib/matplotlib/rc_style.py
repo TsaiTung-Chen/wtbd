@@ -3,7 +3,7 @@
 Created on Wed Mar 11 09:15:49 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/19
+@update: 2021/10/03
 """
 """
 USAGE:
@@ -26,6 +26,7 @@ https://matplotlib.org/3.3.0/tutorials/introductory/customizing.html
 """
 
 import functools
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 # =============================================================================
 # ---- Style ( default: `matplotlib.rcdefaults()` )
@@ -95,6 +96,14 @@ rc_style2 = {
     
     "pcolor.shading": 'auto'
 }
+
+
+# =============================================================================
+# ---- For version < 3.3
+# =============================================================================
+if 'pcolor.shading' not in mpl.rcParams.keys():
+    rc_style1.pop('pcolor.shading')
+    rc_style2.pop('pcolor.shading')
 
 
 # =============================================================================
