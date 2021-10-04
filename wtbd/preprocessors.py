@@ -3,7 +3,7 @@
 Created on Sat eb  8 21:52:55 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/10/03
+@update: 2021/10/04
 @outputs: numpy array in float64
 @pipeline:
     1.
@@ -51,9 +51,7 @@ from .lib.audio import get_streaminfo, print_streaminfo
 
 _raw = pkgutil.get_data(__package__, RECORDING_ENVIRONMENTS_PATH)
 RecordingEnvironments = loads_json(_raw)
-Scales = RecordingEnvironments['scale']
-Sensitivities = RecordingEnvironments['sensitivity']
-RotorSpeeds = RecordingEnvironments['rotorspeeds']
+RotorSpeeds = (9, 19)    # min and max rotor speeds (rpm)
 # =============================================================================
 # ---- Functions
 # =============================================================================
@@ -71,9 +69,14 @@ def moving_average(x, n_points):
 
 
 
-def get_record_info(fname) -> dict:
-    patterns = {"model": r"\{[^{}]+\}", 
-                "date": r"@\d{8}", 
+def get_id(filepath) -> str:
+    filename = os.path.basename(filepath)
+    return os.path.splitext(filename)[0]
+
+
+
+def get_record_info(filename) -> dict:
+    patterns = {"date": r"@\d{8}", 
                 "no": r"#\d+", 
                 "classname": r"\[[^\[\]]+\]", 
                 "subtitle": r"-\d+", 
@@ -81,7 +84,7 @@ def get_record_info(fname) -> dict:
                 "rpm": r"\`[^`]+rpm\`"}
     record_info = dict.fromkeys(patterns.keys(), '')
     for key, pattern in patterns.items():
-        info = re.findall(pattern, fname)
+        info = re.findall(pattern, filename)
         if info:
             record_info[key] = info[0]
     
@@ -91,8 +94,7 @@ def get_record_info(fname) -> dict:
 
 def join_record_info(info:Union[List[str], Dict[str, str]]) -> str:
     if isinstance(info, dict):
-        info = [ info.get(k, '') for k in ("model", 
-                                           "date", 
+        info = [ info.get(k, '') for k in ("date", 
                                            "no", 
                                            "classname", 
                                            "subtitle", 
@@ -103,26 +105,8 @@ def join_record_info(info:Union[List[str], Dict[str, str]]) -> str:
 
 
 
-def get_factor(which, model, date, no, subtitle='', **kwargs) -> dict:
-    assert which in {'scale', 'sensitivity'}, which
-    
-    year, month, day = date[:5], date[5:7], date[7:9]
-    ID = [model, year, month, day, no, subtitle]
-    dictionary = Scales if which == 'scale' else Sensitivities
-    
-    factor = None
-    for key in ID+[None]:
-        factor = dictionary.get('general', None) or factor
-        dictionary = dictionary.get(key, None)
-        if isinstance(dictionary, dict):
-            continue
-        if dictionary is None:
-            break
-        return dictionary
-    
-    if factor is None:
-        raise KeyError("ID not found: {}".format(ID))
-    return factor
+def get_record_env(id_: str) -> dict:
+    return RecordingEnvironments.get(id_, None)
 
 
 
@@ -189,16 +173,15 @@ def search_files(directory,
 
 
 def parse_datapath(fpath, label_type='index', rpm_dtype=DTYPE) -> dict:
-    filename = os.path.basename(fpath)
-    fname = os.path.splitext(filename)[0]
-    info = get_record_info(fname)
+    id_ = get_id(fpath)
+    info = get_record_info(id_)
     classname = info['classname']
     label = change_symbol(classname, symbol_type=label_type)
     
     rpm = info['rpm'][1:-4]
     rpm = np.dtype(rpm_dtype).type(rpm)
     
-    return filename, rpm, label
+    return id_, rpm, label
 
 
 
@@ -381,10 +364,6 @@ def check_for_remove(directory, exceptions=[]):
 # ---- Classes
 # =============================================================================
 class Preprocessor:
-    Scales = Scales
-    Sensitivities = Sensitivities
-    RotorSpeeds = RotorSpeeds
-    
     def __init__(self, 
                  mode='dynamic',     # 'dynamic': RS-based; 'static': 20 sec
                  label_type='index', 
@@ -413,21 +392,12 @@ class Preprocessor:
         self.vlim = VLIM_SPL if SPL else VLIM_PA
     
     @plt_rc_context()
-    def __call__(self, 
-                 directory,     # WAV files
-                 walk=False, 
-                 save_directory=None, 
-                 sensitivity=None, 
-                 scale=None, 
-                 rslimits=None) -> dict:
+    def __call__(self, directory, walk=False, save_directory=None) -> dict:
          # keys: 'names', 'Ss', 'rpms', 'labels', 'info'
         self.directory = directory
         self.walk = walk
         self.save_directory = save_directory
         self.save = save_directory is not None
-        self.sensitivity = sensitivity
-        self.scale = scale
-        self.rslimits = rslimits
         self._idx_gen = Generator()
         
         wav_paths = search_files(directory, 
@@ -513,14 +483,17 @@ class Preprocessor:
          # ==> double(float64) normalized into -1.0 and +1.0
         
         # Search info
-        filename = os.path.basename(filepath)
-        fname = os.path.splitext(filename)[0]
-        record_info = get_record_info(fname)
+        id_ = get_id(filepath)
+        record_info = get_record_info(id_)
         classname = record_info['classname']
-        rslimits = self.rslimits or RotorSpeeds[record_info['model']]
-        scale = (self.scale or get_factor('scale', **record_info))
-        sensitivity = (self.sensitivity 
-                       or get_factor('sensitivity', **record_info))
+        
+        record_env = get_record_env(id_)
+        if record_env:
+            sensitivity = record_env['sensitivity']
+            scale = record_env['scale']
+        else:
+            sensitivity = float(input("Enter the sensitivity (V/Pa): "))
+            scale = float(input("Enter the scaling factor (usually 1): "))
         
         # Scale
         if x.ndim > 1:
@@ -532,13 +505,12 @@ class Preprocessor:
         # Process
         if 'static' == self.mode:
             results = self.static_process(x, sr, 
-                                          fname=fname, 
+                                          id_=id_, 
                                           scale=scale, 
                                           sensitivity=sensitivity)
         else:
             results = self.dynamic_process(x, sr, 
-                                           fname=fname, 
-                                           rslimits=rslimits, 
+                                           id_=id_, 
                                            scale=scale, 
                                            sensitivity=sensitivity)
         
@@ -556,9 +528,9 @@ class Preprocessor:
         
         # Process info
         table = {
-            "File name": fname, 
+            "ID": id_, 
             "# of samples": n_samples, 
-            "Averaged rotor speed (%s~%s)" % tuple(rslimits): 
+            "Averaged rotor speed (%s~%s)" % RotorSpeeds: 
                 '%.2f rpm' % results.pop('avg_rpm'), 
             "Overload ratio": results.pop('overload')['ratio']
         }
@@ -566,7 +538,7 @@ class Preprocessor:
         
         return results
     
-    def static_process(self, x, sr, fname, scale, sensitivity) -> dict:
+    def static_process(self, x, sr, id_, scale, sensitivity) -> dict:
         clip_duration = 20    # (sec)
         clip_hop = clip_duration // 2    # (sec)
         n_clips = int(np.floor(1 + (len(x)/sr - clip_duration) / clip_hop))
@@ -580,18 +552,18 @@ class Preprocessor:
             t_start, t_stop = t1 + self.begin, t2 + self.begin
             
             # PNG name
-            name = self.make_pngname(x, sr, fname, t_start, t_stop)
+            name = self.make_pngname(x, sr, id_, t_start, t_stop)
             S = self.static_process_clip(x_clip, 
                                          sr, 
                                          t_start=t_start, 
                                          t_stop=t_stop, 
-                                         fname=fname)
+                                         id_=id_)
             Ss.append(S)
             names.append(name)
         
         return {"Ss": Ss, "names": names}
     
-    def static_process_clip(self, x, sr, t_start, t_stop, fname) -> tuple:
+    def static_process_clip(self, x, sr, t_start, t_stop, id_) -> tuple:
         # Spectrogram
         S, F, T, pps = self.spectrogram(x, sr, t_start=t_start)
         
@@ -612,7 +584,7 @@ class Preprocessor:
         clabel = 'dB SPL' if self.SPL else 'pressure amplitude [Pa]'
         
         fig, ax = plt.subplots()
-        plt.suptitle(fname)
+        plt.suptitle(id_)
         plt.title('Spectrogram')
         plt.pcolormesh(T, F, S, vmin=self.vlim[0], vmax=self.vlim[1])
         plt.xlim(t_start, t_stop)
@@ -626,7 +598,7 @@ class Preprocessor:
             plt.close()
         if self.save:
             fpath = os.path.join(self.save_directory, 
-                                 fname+'_%d.png' % next(self._idx_gen))
+                                 id_+'_%d.png' % next(self._idx_gen))
             save_fig(fig, fpath, newfolder=True, makedir=True)
         
         return S
@@ -634,8 +606,7 @@ class Preprocessor:
     def dynamic_process(self, 
                         x, 
                         sr, 
-                        fname, 
-                        rslimits, 
+                        id_, 
                         scale, 
                         sensitivity) -> dict:
         t_start = self.begin
@@ -652,8 +623,7 @@ class Preprocessor:
         # Estimate rotor speed
         bounds, irrationals, irrational_ratio = self.estimate_rotorspeed(
             S, F, T, pps, 
-            fname=fname, 
-            rslimits=rslimits, 
+            id_=id_, 
             overload=overload
         )
         
@@ -678,7 +648,7 @@ class Preprocessor:
         
         
         # PNG names
-        make_pngname = lambda tt, rpm: self.make_pngname(x, sr, fname, *tt, rpm)
+        make_pngname = lambda tt, rpm: self.make_pngname(x, sr, id_, *tt, rpm)
         names = list(map(make_pngname, T_split, rpms))
         
         results = {"Ss": S_split, 
@@ -696,7 +666,7 @@ class Preprocessor:
         
         for r, (lefts, rights) in bounds.items():
             fig, ax = plt.subplots()
-            plt.suptitle(fname)
+            plt.suptitle(id_)
             plt.title('Spectrogram (%s)' % r_to_blades[r])
             plt.pcolormesh(T, F, S, vmin=self.vlim[0], vmax=self.vlim[1])
             b, t = plt.ylim()
@@ -709,7 +679,7 @@ class Preprocessor:
             )
             list(map(add_rec, lefts, rights))
             plt.xlim(t_start, t_stop)
-            plt.suptitle(fname)
+            plt.suptitle(id_)
             plt.xlabel('time [sec]')
             plt.ylabel('fequency [Hz]')
             plt.colorbar(label=clabel)
@@ -720,20 +690,20 @@ class Preprocessor:
                 plt.close()
             if self.save:
                 fpath = os.path.join(self.save_directory, 
-                                     fname+'_%d.png' % next(self._idx_gen))
+                                     id_+'_%d.png' % next(self._idx_gen))
                 save_fig(fig, fpath, newfolder=True, makedir=True)
         
         return results
     
-    def make_pngname(self, x, sr, fname, t_start, t_stop, rpm=None):
+    def make_pngname(self, x, sr, id_, t_start, t_stop, rpm=None):
         t_total = len(x) / sr + self.begin
         n_chars = len(f'{t_total:.1f}')
         t_start = ('0'*n_chars + f'{t_start:.1f}')[-n_chars:]
         t_stop = ('0'*n_chars + f'{t_stop:.1f}')[-n_chars:]
         
         if rpm is None:
-            return fname + '_(%s~%s).png' % (t_start, t_stop)
-        return fname + '_(%s~%s)_`%.2frpm`.png' % (t_start, t_stop, rpm)
+            return id_ + '_(%s~%s).png' % (t_start, t_stop)
+        return id_ + '_(%s~%s)_`%.2frpm`.png' % (t_start, t_stop, rpm)
     
     def spectrogram(self, x, sr, t_start) -> tuple:
         windowlength = 512    # (points)
@@ -788,14 +758,13 @@ class Preprocessor:
         
         return overload
     
-    def estimate_rotorspeed(
-            self, S, F, T, pps, fname, rslimits, overload) -> tuple:
+    def estimate_rotorspeed(self, S, F, T, pps, id_, overload) -> tuple:
         cutin_freq1 = 1500    # cut-in freq of sound
         cutoff_freq1 = 2500    # cut-off freq of sound
         cutin_freq2 = 8500    # cut-in freq of sound
         cutoff_freq2 = 12500    # cut-off freq of sound
         
-        min_rs, max_rs = rslimits
+        min_rs, max_rs = RotorSpeeds
         
         
         # (rpm) => (rps)
@@ -851,7 +820,7 @@ class Preprocessor:
                 plt.close()
             if self.save:
                 fpath = os.path.join(self.save_directory, 
-                                     fname+'_%d.png' % next(self._idx_gen))
+                                     id_+'_%d.png' % next(self._idx_gen))
                 save_fig(fig, fpath, newfolder=True, makedir=True)
         
         
@@ -918,7 +887,7 @@ class Preprocessor:
                 plt.close()
             if self.save:
                 fpath = os.path.join(self.save_directory, 
-                                     fname+'_%d.png' % next(self._idx_gen))
+                                     id_+'_%d.png' % next(self._idx_gen))
                 save_fig(fig, fpath, newfolder=True, makedir=True)
         
         
@@ -973,7 +942,7 @@ class Preprocessor:
                                        overload['middles']))
             
             fig, axs = plt.subplots(2, 1, sharex=True)
-            plt.suptitle(fname)
+            plt.suptitle(id_)
             
             axs[0].set_title('Spectrogram')
             img = axs[0].pcolormesh(T_clip, F, S_clip, 
@@ -1014,7 +983,7 @@ class Preprocessor:
                 plt.close()
             if self.save:
                 fpath = os.path.join(self.save_directory, 
-                                     fname+'_%d.png' % next(self._idx_gen))
+                                     id_+'_%d.png' % next(self._idx_gen))
                 save_fig(fig, fpath, newfolder=True, makedir=True)
         
         valleys = np.unique(valleys)

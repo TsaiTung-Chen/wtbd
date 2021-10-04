@@ -14,8 +14,6 @@ WALK = True
 
 SUBSET = 'all'
 
-SENSITIVITY = None
-SCALE = None
 PLOT = 1
 
 
@@ -30,18 +28,13 @@ def evaluate(modelname,
              directory, 
              walk=False, 
              subset='all', 
-             sensitivity=None, 
-             scale=None, 
              plot=1):
     try:
         data_collector = SubsetDataCollector()
         data = data_collector(directory, subset=subset)
     except FileNotFoundError:
         preprocessor = Preprocessor(plot=plot)
-        data = preprocessor(directory, 
-                            walk=walk, 
-                            sensitivity=sensitivity, 
-                            scale=scale)
+        data = preprocessor(directory, walk=walk)
         data = fetch(data, subset=subset)
         print()
     print_info(data['info'])
@@ -63,8 +56,6 @@ if __name__ == '__main__':
                              DIRECTORY, 
                              walk=WALK, 
                              subset=SUBSET, 
-                             sensitivity=SENSITIVITY, 
-                             scale=SCALE, 
                              plot=PLOT)
 
 
