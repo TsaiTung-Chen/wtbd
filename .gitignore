@@ -6,6 +6,5 @@ __pycache__/
 .spyderproject
 .spyproject
 
-# Data
-dataset/
-dataset.tar.gz
+# Dataset
+/dataset*

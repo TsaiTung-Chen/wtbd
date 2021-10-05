@@ -4,7 +4,7 @@
 Created on Mon Sep 27 18:21:32 2021
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/10/04
+@update: 2021/10/05
 """
 
 MODEL_DIRECTORY = r"models/"
@@ -256,7 +256,7 @@ class Network:    # Wrapper
         return self.model.summary(*args, **kwargs)
     
     def get_layer(self, name_or_index):
-        return get_layer(model, name_or_index)
+        return get_layer(self.model, name_or_index)
     
     @property
     def layers(self):

@@ -3,7 +3,7 @@
 Created on Sat eb  8 21:52:55 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/10/04
+@update: 2021/10/05
 @outputs: numpy array in float64
 @pipeline:
     1.
@@ -145,7 +145,7 @@ def count_classes(name_or_index, n_samples=1):
     
 def search_files(directory,
                  exts=['.wav'],
-                 walk=False,
+                 walk=True,
                  skip_hidden=True,
                  sort=False):
     if isinstance(exts, str):
@@ -392,7 +392,7 @@ class Preprocessor:
         self.vlim = VLIM_SPL if SPL else VLIM_PA
     
     @plt_rc_context()
-    def __call__(self, directory, walk=False, save_directory=None) -> dict:
+    def __call__(self, directory, walk=True, save_directory=None) -> dict:
          # keys: 'names', 'Ss', 'rpms', 'labels', 'info'
         self.directory = directory
         self.walk = walk
