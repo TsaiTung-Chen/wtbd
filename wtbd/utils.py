@@ -4,42 +4,31 @@
 Created on Mon Sep 27 18:21:32 2021
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/10/02
+@update: 2021/10/05
 """
 
 import functools
 import numpy as np
-import tensorflow as tf
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 from typing import Optional, Iterable, Callable
 
 from .preprocessors import change_symbol
-from .preprocessors import DTYPE, VLIM_PA, VLIM_SPL
+from .preprocessors import VLIM_PA, VLIM_SPL
 from .lib.matplotlib.rc_style import plt_rc_context
 # =============================================================================
 # 
 # =============================================================================
-def convert_to_tensor(iterable, dtype=DTYPE):
-    shapes = np.asarray(list(map(lambda arr: np.shape(arr), iterable)))
-    same_shape = (shapes == shapes[0]).all()
-    
-    if same_shape:
-        return tf.convert_to_tensor(iterable, dtype=dtype)
-    return tf.ragged.constant(iterable, dtype=dtype)
-
-
-
 def get_inputs(modelname: str, data: dict) -> dict:
     if 'simple' in modelname.lower():
-        return {"input_sp": convert_to_tensor(data['Ss'])}
-    return {"input_sp": convert_to_tensor(data['Ss']), 
-            "input_rs": convert_to_tensor(data['rpms'])}
+        return {"input_sp": data['Ss']}
+    return {"input_sp": np.asarray(data['Ss']), 
+            "input_rs": np.asarray(data['rpms'])}
 
 
 
 def get_targets(data: dict):
-    return convert_to_tensor(data['labels'])
+    return np.asarray(data['labels'])
 
 
 
@@ -107,7 +96,7 @@ def print_info(dictionary: dict,  print_fn: Optional[Callable] = print):
 
 
 
-def show_prediction(data: dict, pred, label_type='name', print_fn=print):
+def print_prediction(data: dict, pred, label_type='name', print_fn=print):
     names, pred = np.squeeze(data['names']), np.squeeze(pred)
     assert len(names) == len(pred)
     
@@ -119,5 +108,14 @@ def show_prediction(data: dict, pred, label_type='name', print_fn=print):
     print_fn(table)
     
     return table
+
+
+
+def print_metrics(results: dict, print_fn=print):
+    string = [ '%s: %.4f' % (k, v) for k, v in results.items() ]
+    string = ' - '.join(string)
+    print_fn(string)
+    
+    return string
 
 

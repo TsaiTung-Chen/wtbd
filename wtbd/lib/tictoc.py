@@ -3,7 +3,7 @@
 Created on Thu Feb 27 18:19:24 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/09/25
+@update: 2021/10/06
 """
 """
 USAGE:
@@ -21,11 +21,11 @@ import time
 # ---- Classes
 # =============================================================================
 class TicToc():
-    def __init__(self, print_fn=None):
+    def __init__(self, print_fn=print):
         self.print_fn = print_fn or (lambda *args, **kwargs: None)
         self.tics = []
     
-    def tic(self, show=True, localtime=True):
+    def tic(self, show=False, localtime=False):
         i = len(self.tics)
         self.tics.append(time.time())
         
@@ -36,7 +36,7 @@ class TicToc():
         
         return 0
     
-    def toc(self, show=True, format_on=True, pop=True, localtime=True):
+    def toc(self, show=False, format_on=True, pop=True, localtime=False):
         if len(self.tics)==0:
             self.print_fn('(None)\n')
             return None
@@ -66,14 +66,14 @@ class TicToc():
         
         return elapsed_sec
     
-    def localtime(self, show=True, colon=True):
+    def localtime(self, show=False, colon=True):
         return localtime(show=show, colon=colon, print_fn=self.print_fn)
 
 
 # =============================================================================
 # ---- Functions
 # =============================================================================
-def localtime(show=True, colon=True, print_fn=print) -> (str, object):
+def localtime(show=False, colon=True, print_fn=print) -> (str, object):
     timeformat = "%Y-%m-%d_%H:%M:%S" if colon else "%Y-%m-%d_%H-%M-%S"
     localtime_obj = time.localtime()
     localtime_str = time.strftime(timeformat, localtime_obj)
@@ -89,8 +89,8 @@ def localtime(show=True, colon=True, print_fn=print) -> (str, object):
 # =============================================================================
 if __name__ == '__main__':
     timer = TicToc(print)
-    timer.tic()
-    timer.toc()
-    timer.localtime(colon=False)
+    timer.tic(True, localtime=True)
+    timer.toc(True, localtime=True)
+    timer.localtime(True, colon=False)
 
 

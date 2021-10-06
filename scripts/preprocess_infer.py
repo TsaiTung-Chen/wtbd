@@ -9,10 +9,10 @@ Created on Mon Sep 27 18:11:58 2021
 
 MODEL_NAME = 'PhysicalCNN'
 
-DIRECTORY = r"../audio.wav"#???r"../dataset/audio/"
+DIRECTORY = r"../dataset/audio/"
 WALK = True
 
-PLOT = 0#???1
+PLOT = 1
 
 
 from wtbd.infer import infer

@@ -4,7 +4,7 @@
 Created on Mon Sep 27 18:21:32 2021
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/10/05
+@update: 2021/10/06
 """
 
 MODEL_DIRECTORY = r"models/"
@@ -15,9 +15,11 @@ import sys
 import contextlib
 import numpy as np
 import tensorflow as tf
-from typing import Optional
 from tabulate import tabulate
+from typing import Optional, Union
 
+from .lib.tictoc import TicToc
+from .utils import print_metrics
 from .postprocess import binary_classification
 
 _pkg_path = os.path.dirname(sys.modules[__package__].__file__)
@@ -214,19 +216,58 @@ class Network:    # Wrapper
         self.modelname = modelname
         self.__call__ = model.__call__
     
-    def evaluate(self, x=None, y=None, batch_size=None, verbose=1, **kwargs):
-        return self.model.evaluate(x, 
-                                   y, 
-                                   batch_size=batch_size, 
-                                   verbose=verbose, 
-                                   return_dict=True, 
-                                   **kwargs)
+    def check_same_length(self, x: dict, y: Union[np.ndarray, tf.Tensor]):
+        assert isinstance(y, (np.ndarray, tf.Tensor)), type(y)
+        length = len(y)
+        for k, v in x.items():
+            assert isinstance(v, (np.ndarray, tf.Tensor)), type(v)
+            assert len(v) == length, (len(v), length)
+        
+        return length
     
-    def predict(self, x, batch_size=None, verbose=1, **kwargs):
+    def evaluate(self, 
+                 x: dict, 
+                 y: Union[np.ndarray, tf.Tensor], 
+                 batch_size=128, 
+                 **kwargs):
+        length = self.check_same_length(x, y)
+        n_splits = int(np.ceil(length / batch_size))
+        
+        timer = TicToc()
+        timer.tic()
+        progress, p = ['.'] * 30, 0
+        print(''.join(progress).join(['[', ']']), end='')
+        results = list()
+        for i in range(n_splits):
+            start = i * batch_size
+            stop = start + batch_size
+            _x = { k: v[start:stop] for k, v in x.items() }
+            _y = y[start:stop]
+            w = len(_y) / length
+            res = self.model.evaluate(_x, 
+                                      _y, 
+                                      batch_size=batch_size, 
+                                      verbose=0, 
+                                      return_dict=True, 
+                                      **kwargs)
+            results.append( dict(map(lambda k: (k, res[k] * w), res.keys())) )
+            
+            p += w * 30
+            _p = max(min(int(np.ceil(p)), 30), 1)
+            progress[:_p] = ['='] * (_p-1) + ['>']
+            print('\r[' + ''.join(progress), end='')
+        print('\r[' + '=' * 30 + ']', end=' - %.0fs - ' % timer.toc())
+        
+        results = { k: sum(map(lambda res: res[k], results)) for k in res }
+        print_metrics(results)
+        
+        return results
+    
+    def predict(self, x, batch_size=128, verbose=1, **kwargs):
         return self.model.predict(
             x, batch_size=batch_size, verbose=verbose, **kwargs)
     
-    def infer(self, x, batch_size=None, verbose=1, **kwargs):
+    def infer(self, x, batch_size=128, verbose=1, **kwargs):
         binary_accuracy = self.get_metric('accuracy')
         threshold = binary_accuracy.get_config()['threshold']
         outputs = self.predict(

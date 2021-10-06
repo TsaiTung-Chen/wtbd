@@ -3,7 +3,7 @@
 Created on Sat Sep 12 17:08:46 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/10/01
+@update: 2021/10/06
 @pipeline:
     1.
 """
@@ -97,7 +97,9 @@ class DataCollector:
     
     def read_file(self, fpath) -> tuple:
         S = load_png(fpath, is_SPL=self.is_SPL, dtype=self.dtype)
-        name, rpm, label = parse_datapath(fpath, label_type=self.label_type)
+        name, rpm, label = parse_datapath(fpath, 
+                                          label_type=self.label_type, 
+                                          rpm_dtype=self.dtype)
         
         return name, S, rpm, label
     
