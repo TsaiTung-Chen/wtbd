@@ -3,7 +3,7 @@
 Created on Sat eb  8 21:52:55 2020
 
 @author: TSAI, TUNG-CHEN
-@update: 2021/10/05
+@update: 2021/10/06
 @outputs: numpy array in float64
 @pipeline:
     1.
@@ -275,7 +275,7 @@ def resize(S, shape=[None, None]):
 
 
 def save_png(fpath, S, is_SPL=True, flip_freq_axis=True):
-    """`S` has dtype 'float32' or 'float64' and will be rescale to [0, 1]. 
+    """`S` has dtype 'float32' or 'float64' and will be rescaled to [0, 1]. 
     After rescaling, map `S` to [0, 2**16-1] with dtype 'uint16'.
     """
     assert S.ndim == 2, S.ndim
@@ -497,7 +497,7 @@ class Preprocessor:
         
         # Scale
         if x.ndim > 1:
-            x = x[CHANNEL, :]
+            x = x[CHANNEL]
         x = x[self.begin*sr:]    # start from 30 sec
         x *= scale
         x /= sensitivity    # => (Pa)
