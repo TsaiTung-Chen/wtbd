@@ -125,7 +125,10 @@ def change_symbol(name_or_index, symbol_type='index'):
 
 
 def generate_labels(name_or_index, label_type='index', n_samples=1):
-    label = change_symbol(name_or_index, symbol_type='index')
+    if name_or_index is None:
+        label = None
+    else:
+        label = change_symbol(name_or_index, symbol_type=label_type)
     
     if n_samples == 1:
         return label
@@ -133,7 +136,10 @@ def generate_labels(name_or_index, label_type='index', n_samples=1):
 
 
 
-def count_classes(name_or_index, n_samples=1):
+def generate_classcounts(name_or_index, n_samples=1):
+    if name_or_index is None:
+        return dict()
+    
     classname = change_symbol(name_or_index, symbol_type='name')
     keys = INDEX_TO_NAME.values()
     classcounts = dict.fromkeys(keys, 0)
@@ -152,7 +158,7 @@ def search_files(directory,
         exts = [exts]
     
     if not os.path.isdir(directory) and any(map(directory.endswith, exts)):
-        if skip_hidden and directory.startswith('.'):
+        if skip_hidden and os.path.basename(directory).startswith('.'):
             return list()
         return [directory]
     
@@ -360,32 +366,65 @@ def check_for_remove(directory, exceptions=[]):
         list(map(shutil.rmtree, removed_folders))
 
 
+
+def ask_for_classname():
+    _classname_ = INDEX_TO_NAME.values()
+    
+    classname = None
+    while classname not in _classname_:
+        classname = input("Enter the class name, {}: ".format(
+            ' or '.join(_classname_)))
+    
+    return classname
+
+
+
+def ask_for_constants():
+    def ask_for_constant(prompt=None):
+        while True:
+            factor = input(prompt)
+            try:
+                return float(factor)
+            except ValueError as e:
+                if 'could not convert string to float' in str(e):
+                    print(e)
+                    continue
+                raise
+    
+    #
+    sensitivity = ask_for_constant("Enter the sensitivity (V/Pa): ")
+    scale = ask_for_constant("Enter the scaling factor (usually 1): ")
+    
+    return sensitivity, scale
+
+
 # =============================================================================
 # ---- Classes
 # =============================================================================
 class Preprocessor:
     def __init__(self, 
                  mode='dynamic',     # 'dynamic': RS-based; 'static': 20 sec
-                 label_type='index', 
                  SPL=True, 
                  shape=[96, 96], 
                  dtype=DTYPE, 
                  begin=30,     # (sec) skip the first 30 sec
                  cutin_freq=4000,     # (Hz)
                  cutoff_freq=None,     # (Hz)
+                 label_type=None,     # None, 'index' or 'name'
                  plot=3, 
                  render=True,     # render the plots
                  print_fn=print):
         assert mode in {'static', 'dynamic', 'dynamic0', 'dynamic012'}, mode
+        assert label_type in {'name', 'index', None}, label_type
         assert plot in {0, 1, 2, 3}, plot
         self.mode = mode
-        self.label_type = label_type
         self.SPL = SPL
         self.shape = shape
         self.dtype = dtype
         self.begin = begin
         self.cutin_freq = cutin_freq
         self.cutoff_freq = cutoff_freq
+        self.label_type = label_type
         self.plot = plot
         self.render = render
         self.print_fn = print_fn or (lambda *args, **kwargs: None)
@@ -422,6 +461,7 @@ class Preprocessor:
             
             # Process
             res = self.process(filepath)
+            self.print_fn('')
             
             # Resize
             if self.shape:
@@ -429,18 +469,15 @@ class Preprocessor:
             
             # Concat the results
             if i == 1:
-                info = res.pop('classcounts')
+                results = res
                 if 'table' in res.keys():
-                    results['table'] = [res.pop('table')]
+                    results['table'] = [res['table']]
             else:
-                info += res.pop('classcounts')
-                if 'table' in res.keys():
-                    results['table'].append(res.pop('table'))
-            
-            for key, value in res.items():
-                results.setdefault(key, list()).extend(value)
-            
-            self.print_fn('')
+                for key, value in res.items():
+                    if key == 'table':
+                        results[key].append(value)
+                        continue
+                    results[key] += value
             
             # Save
             if not self.save:
@@ -450,7 +487,7 @@ class Preprocessor:
             datapaths = map(join_path, res['names'])
             list(map(save_spectrogram, datapaths, res['Ss']))
         
-        info['total'] = info.sum()
+        results['info']['total'] = results['info'].sum()
         if 'table' in results.keys():
             results['table'] = pd.concat(results['table'], ignore_index=True)
         
@@ -458,7 +495,7 @@ class Preprocessor:
         if self.save:
             fpath = os.path.join(save_directory, 'preprocess_info.txt')
             with open(fpath, 'w') as f:
-                print(info.to_string(), file=f)
+                print(results['info'].to_string(), file=f)
                 if 'table' in results.keys():
                     print(file=f)
                     print(
@@ -470,7 +507,6 @@ class Preprocessor:
                     )
         
         self.print_fn('Done!')
-        results['info'] = info
         
         return results
     
@@ -482,18 +518,8 @@ class Preprocessor:
         x, sr = librosa.load(filepath, sr=None, mono=False, dtype='float64')
          # ==> double(float64) normalized into -1.0 and +1.0
         
-        # Search info
-        id_ = get_id(filepath)
-        record_info = get_record_info(id_)
-        classname = record_info['classname']
-        
-        record_env = get_record_env(id_)
-        if record_env:
-            sensitivity = record_env['sensitivity']
-            scale = record_env['scale']
-        else:
-            sensitivity = float(input("Enter the sensitivity (V/Pa): "))
-            scale = float(input("Enter the scaling factor (usually 1): "))
+        # Recording parameters
+        id_, classname, sensitivity, scale = self.get_params(filepath)
         
         # Scale
         if x.ndim > 1:
@@ -519,8 +545,9 @@ class Preprocessor:
             "labels": generate_labels(classname,
                                       label_type=self.label_type, 
                                       n_samples=n_samples), 
-            "classcounts": pd.Series(count_classes(classname, 
-                                                   n_samples=n_samples))
+            "info": pd.Series(generate_classcounts(classname, 
+                                                   n_samples=n_samples), 
+                              dtype=int)
         })
         
         if 'static' == self.mode:
@@ -537,6 +564,29 @@ class Preprocessor:
         results['table'] = pd.DataFrame(table, index=[0])
         
         return results
+    
+    def get_params(self, filepath):
+        id_ = get_id(filepath)
+        record_info = get_record_info(id_)
+        record_env = get_record_env(id_)
+        classname = record_info['classname']
+        
+        print_unknown_audio_file = False
+        if self.label_type is None:
+            classname = None
+        elif not classname:
+            print_unknown_audio_file = True
+            print('Received an unknown audio file.')
+            classname = ask_for_classname()
+        
+        if record_env:
+            sensitivity, scale = record_env['sensitivity'], record_env['scale']
+        else:
+            if not print_unknown_audio_file:
+                print('Received an unknown audio file.')
+            sensitivity, scale = ask_for_constants()
+        
+        return id_, classname, sensitivity, scale
     
     def static_process(self, x, sr, id_, scale, sensitivity) -> dict:
         clip_duration = 20    # (sec)
